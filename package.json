@@ -7,7 +7,23 @@
   "categories": ["Other"],
   "activationEvents": ["onLanguage:markdown"],
   "main": "./out/extension.js",
-  "contributes": {},
+  "contributes": {
+    "configuration": {
+      "title": "Livemarks",
+      "properties": {
+        "livemarks.syntaxMarkers": {
+          "type": "string",
+          "enum": ["dimmed", "hidden"],
+          "enumDescriptions": [
+            "Syntax markers (**, *, ##, ~~) are always visible at reduced opacity.",
+            "Syntax markers are invisible on all lines except the one containing the cursor."
+          ],
+          "default": "dimmed",
+          "description": "Controls how markdown syntax markers are displayed in the editor."
+        }
+      }
+    }
+  },
   "scripts": {
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",

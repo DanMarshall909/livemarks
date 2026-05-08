@@ -1,13 +1,17 @@
 import * as vscode from 'vscode';
 import { MarkdownDecorator } from './decorator';
 
+function cursorLines(editor: vscode.TextEditor): Set<number> {
+  return new Set(editor.selections.map(s => s.active.line));
+}
+
 export function activate(context: vscode.ExtensionContext): void {
   const decorator = new MarkdownDecorator();
 
   let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 
   function decorateEditor(editor: vscode.TextEditor): void {
-    decorator.apply(editor);
+    decorator.apply(editor, cursorLines(editor));
   }
 
   function scheduleDecorate(editor: vscode.TextEditor): void {
@@ -30,6 +34,18 @@ export function activate(context: vscode.ExtensionContext): void {
         e => e.document === event.document
       );
       if (editor) scheduleDecorate(editor);
+    }),
+
+    vscode.window.onDidChangeTextEditorSelection(event => {
+      decorator.reposition(event.textEditor, cursorLines(event.textEditor));
+    }),
+
+    vscode.workspace.onDidChangeConfiguration(event => {
+      if (event.affectsConfiguration('livemarks')) {
+        for (const editor of vscode.window.visibleTextEditors) {
+          decorator.reposition(editor, cursorLines(editor));
+        }
+      }
     }),
 
     { dispose: () => { if (debounceTimer) clearTimeout(debounceTimer); } },
