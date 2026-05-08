@@ -83,6 +83,47 @@ describe('parseMarkdown', () => {
     });
   });
 
+  describe('headings', () => {
+    it('h1 emits a heading1 range for the content', () => {
+      const ranges = pick(parseMarkdown('# Hello'), 'heading1');
+      expect(ranges).toHaveLength(1);
+      // content starts after '# ' (char 2)
+      expect(ranges[0]).toMatchObject({ startLine: 0, startChar: 2, endLine: 0, endChar: 7 });
+    });
+
+    it('h2 emits a heading2 range', () => {
+      const ranges = pick(parseMarkdown('## World'), 'heading2');
+      expect(ranges).toHaveLength(1);
+      expect(ranges[0]).toMatchObject({ startChar: 3, endChar: 8 });
+    });
+
+    it('h3 through h6 emit the correct kind', () => {
+      for (let n = 3; n <= 6; n++) {
+        const markers = '#'.repeat(n);
+        const ranges = pick(parseMarkdown(`${markers} Text`), `heading${n}` as StyledRange['kind']);
+        expect(ranges).toHaveLength(1);
+        expect(ranges[0].startChar).toBe(n + 1); // markers + space
+      }
+    });
+
+    it('emits a syntax range for the # markers', () => {
+      const syntax = pick(parseMarkdown('## Heading'), 'syntax');
+      expect(syntax).toHaveLength(1);
+      expect(syntax[0]).toMatchObject({ startChar: 0, endChar: 2 });
+    });
+
+    it('heading on line 1 (index 1) has correct startLine', () => {
+      const ranges = pick(parseMarkdown('intro\n# Title'), 'heading1');
+      expect(ranges).toHaveLength(1);
+      expect(ranges[0].startLine).toBe(1);
+    });
+
+    it('paragraph bold still works after a heading', () => {
+      const ranges = pick(parseMarkdown('# Title\n\n**bold**'), 'bold');
+      expect(ranges).toHaveLength(1);
+    });
+  });
+
   describe('no false positives', () => {
     it('plain text produces no styled ranges', () => {
       expect(parseMarkdown('just plain text')).toHaveLength(0);

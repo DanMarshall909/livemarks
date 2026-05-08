@@ -1,6 +1,8 @@
 import MarkdownIt from 'markdown-it';
 
-export type RangeKind = 'bold' | 'italic' | 'strike' | 'syntax';
+export type RangeKind =
+  | 'bold' | 'italic' | 'strike' | 'syntax'
+  | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'heading5' | 'heading6';
 
 export interface StyledRange {
   kind: RangeKind;
@@ -30,15 +32,35 @@ export function parseMarkdown(source: string): StyledRange[] {
   const blockTokens = md.parse(source, {});
   const lines = source.split('\n');
 
+  let headingLevel: number | null = null;
+  let headingMarkupLen = 0;
+
   for (const block of blockTokens) {
-    if (block.type !== 'inline' || !block.children || !block.map) continue;
+    if (block.type === 'heading_open' && block.map) {
+      headingLevel = parseInt(block.tag[1], 10); // 'h2' → 2
+      headingMarkupLen = block.markup.length;
+      const line = block.map[0];
+      ranges.push({ kind: 'syntax', startLine: line, startChar: 0, endLine: line, endChar: headingMarkupLen });
 
-    const blockStartLine = block.map[0];
-    const blockSource = lines
-      .slice(blockStartLine, block.map[1])
-      .join('\n');
+    } else if (block.type === 'heading_close') {
+      headingLevel = null;
+      headingMarkupLen = 0;
 
-    walkInline(block.children, blockStartLine, blockSource, ranges);
+    } else if (block.type === 'inline' && block.children && block.map) {
+      const line = block.map[0];
+
+      if (headingLevel !== null) {
+        const contentStart = headingMarkupLen + 1; // skip the trailing space after #
+        ranges.push({
+          kind: `heading${headingLevel}` as RangeKind,
+          startLine: line, startChar: contentStart,
+          endLine: line, endChar: contentStart + block.content.length,
+        });
+      } else {
+        const blockSource = lines.slice(line, block.map[1]).join('\n');
+        walkInline(block.children, line, blockSource, ranges);
+      }
+    }
   }
 
   return ranges;

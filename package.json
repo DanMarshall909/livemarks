@@ -1,7 +1,7 @@
 {
-  "name": "md-colorizer",
-  "displayName": "Markdown Colorizer",
-  "description": "Semi-WYSIWYG markdown styling: bold appears bold, italic italic, strikethrough struck — in the editor itself.",
+  "name": "livemarks",
+  "displayName": "Livemarks",
+  "description": "Semi-WYSIWYG markdown styling: bold appears bold, italic italic, headings scale — right in the editor.",
   "version": "0.1.0",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other"],
