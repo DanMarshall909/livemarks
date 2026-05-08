@@ -1,0 +1,26 @@
+{
+  "name": "md-colorizer",
+  "displayName": "Markdown Colorizer",
+  "description": "Semi-WYSIWYG markdown styling: bold appears bold, italic italic, strikethrough struck — in the editor itself.",
+  "version": "0.1.0",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onLanguage:markdown"],
+  "main": "./out/extension.js",
+  "contributes": {},
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "test:unit": "vitest run"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.6.0"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0"
+  }
+}
