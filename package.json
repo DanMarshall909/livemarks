@@ -18,7 +18,7 @@
             "Syntax markers (**, *, ##, ~~) are always visible at reduced opacity.",
             "Syntax markers are invisible on all lines except the one containing the cursor."
           ],
-          "default": "dimmed",
+          "default": "hidden",
           "description": "Controls how markdown syntax markers are displayed in the editor."
         }
       }
