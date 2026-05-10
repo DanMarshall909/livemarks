@@ -1,7 +1,7 @@
 import MarkdownIt from 'markdown-it';
 
 export type RangeKind =
-  | 'bold' | 'italic' | 'strike' | 'syntax' | 'code'
+  | 'bold' | 'italic' | 'strike' | 'syntax' | 'code' | 'listMarker'
   | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'heading5' | 'heading6';
 
 export interface StyledRange {
@@ -34,9 +34,25 @@ export function parseMarkdown(source: string): StyledRange[] {
 
   let headingLevel: number | null = null;
   let headingMarkupLen = 0;
+  let tableRowLine: number | null = null;
+  const tableLineSearchStarts = new Map<number, number>();
 
   for (const block of blockTokens) {
-    if (block.type === 'heading_open' && block.map) {
+    if (block.type === 'list_item_open' && block.map && isBulletMarkup(block.markup)) {
+      const line = block.map[0];
+      const markerStart = findBulletMarkerStart(lines[line] ?? '', block.markup);
+      if (markerStart !== -1) {
+        const markerEnd = findListMarkerEnd(lines[line] ?? '', markerStart + block.markup.length);
+        ranges.push({
+          kind: 'listMarker',
+          startLine: line,
+          startChar: markerStart,
+          endLine: line,
+          endChar: markerEnd,
+        });
+      }
+
+    } else if (block.type === 'heading_open' && block.map) {
       const level = parseInt(block.tag[1], 10); // 'h2' → 2
       if (level < 1 || level > 6 || !Number.isFinite(level)) continue;
       headingLevel = level;
@@ -48,8 +64,16 @@ export function parseMarkdown(source: string): StyledRange[] {
       headingLevel = null;
       headingMarkupLen = 0;
 
-    } else if (block.type === 'inline' && block.children && block.map) {
-      const line = block.map[0];
+    } else if (block.type === 'tr_open' && block.map) {
+      tableRowLine = block.map[0];
+      tableLineSearchStarts.set(tableRowLine, 0);
+
+    } else if (block.type === 'tr_close') {
+      tableRowLine = null;
+
+    } else if (block.type === 'inline' && block.children) {
+      const line = block.map?.[0] ?? tableRowLine;
+      if (line === null) continue;
 
       if (headingLevel !== null) {
         // Locate the actual content span in the source line rather than using
@@ -72,21 +96,116 @@ export function parseMarkdown(source: string): StyledRange[] {
           contentEnd--;
         }
         if (contentEnd > contentStart) {
-          ranges.push({
-            kind: `heading${headingLevel}` as RangeKind,
-            startLine: line, startChar: contentStart,
-            endLine: line, endChar: contentEnd,
-          });
+          walkHeadingInline(
+            block.children,
+            line,
+            lines,
+            block.content,
+            contentStart,
+            contentEnd,
+            `heading${headingLevel}` as RangeKind,
+            ranges,
+          );
         }
-        // NOTE: inline children inside headings (e.g. **bold** in # Title) are
-        // intentionally not walked here — heading ranges cover the whole content span.
       } else {
-        walkInline(block.children, line, lines, block.content, ranges);
+        const searchStart = block.map ? 0 : tableLineSearchStarts.get(line) ?? 0;
+        const contentStart = block.map ? undefined : findInlineContentStart(lines[line] ?? '', block.content, searchStart);
+        if (!block.map && contentStart === -1) continue;
+        if (!block.map && contentStart !== undefined) {
+          tableLineSearchStarts.set(line, contentStart + block.content.length);
+        }
+        walkInline(block.children, line, lines, block.content, ranges, contentStart);
       }
     }
   }
 
   return ranges;
+}
+
+function isBulletMarkup(markup: string): boolean {
+  return markup === '*' || markup === '-' || markup === '+';
+}
+
+function findBulletMarkerStart(srcLine: string, markup: string): number {
+  const markerStart = srcLine.search(/\S/);
+  if (markerStart === -1) return -1;
+  if (srcLine.startsWith(markup, markerStart)) return markerStart;
+  return -1;
+}
+
+function findListMarkerEnd(srcLine: string, start: number): number {
+  let end = start;
+  while (end < srcLine.length && (srcLine[end] === ' ' || srcLine[end] === '\t')) {
+    end++;
+  }
+  return end;
+}
+
+function findInlineContentStart(srcLine: string, content: string, searchStart: number): number {
+  if (content.length === 0) return searchStart;
+  return srcLine.indexOf(content, searchStart);
+}
+
+function walkHeadingInline(
+  children: MarkdownIt.Token[],
+  line: number,
+  lines: string[],
+  sourceContent: string,
+  contentStart: number,
+  contentEnd: number,
+  headingKind: RangeKind,
+  out: StyledRange[],
+): void {
+  let curChar = contentStart;
+  let headingStart = contentStart;
+
+  for (const child of children) {
+    const markerKind = OPEN_KINDS[child.type] ?? (CLOSE_KINDS[child.type] ? 'syntax' : undefined);
+
+    if (markerKind !== undefined) {
+      pushSameLineRange(out, headingKind, line, headingStart, curChar);
+      const markerLen = child.markup.length;
+      out.push({ kind: 'syntax', startLine: line, startChar: curChar, endLine: line, endChar: curChar + markerLen });
+      curChar += markerLen;
+      headingStart = curChar;
+
+    } else if (child.type === 'code_inline') {
+      const markerLen = child.markup.length;
+      const closeAt = findCodeClose(lines[line] ?? '', curChar + markerLen, child.markup);
+      const contentLen = closeAt === -1 ? child.content.length : closeAt - (curChar + markerLen);
+
+      pushSameLineRange(out, headingKind, line, headingStart, curChar);
+      out.push({ kind: 'syntax', startLine: line, startChar: curChar, endLine: line, endChar: curChar + markerLen });
+      out.push({ kind: 'code', startLine: line, startChar: curChar + markerLen, endLine: line, endChar: curChar + markerLen + contentLen });
+      out.push({
+        kind: 'syntax',
+        startLine: line,
+        startChar: curChar + markerLen + contentLen,
+        endLine: line,
+        endChar: curChar + 2 * markerLen + contentLen,
+      });
+      curChar += 2 * markerLen + contentLen;
+      headingStart = curChar;
+
+    } else {
+      curChar += child.content.length;
+    }
+  }
+
+  // If markdown-it normalized the inline stream differently from the source
+  // span, fall back to the source-calculated end so trailing text stays styled.
+  pushSameLineRange(out, headingKind, line, headingStart, Math.max(curChar, contentEnd));
+}
+
+function pushSameLineRange(
+  out: StyledRange[],
+  kind: RangeKind,
+  line: number,
+  startChar: number,
+  endChar: number,
+): void {
+  if (startChar >= endChar) return;
+  out.push({ kind, startLine: line, startChar, endLine: line, endChar });
 }
 
 interface OpenMarker {
@@ -118,9 +237,10 @@ function walkInline(
   startLine: number,
   lines: string[],
   sourceContent: string,
-  out: StyledRange[]
+  out: StyledRange[],
+  sourceStart?: number,
 ): void {
-  const lineStarts = findInlineLineStarts(lines, startLine, sourceContent);
+  const lineStarts = findInlineLineStarts(lines, startLine, sourceContent, sourceStart);
   // We track a (line, char) cursor advancing through the block source.
   let curLine = startLine;
   let curChar = lineStarts.get(curLine) ?? 0;
@@ -215,6 +335,7 @@ function findInlineLineStarts(
   lines: string[],
   startLine: number,
   sourceContent: string,
+  sourceStart?: number,
 ): Map<number, number> {
   const starts = new Map<number, number>();
   const contentLines = sourceContent.split('\n');
@@ -229,7 +350,7 @@ function findInlineLineStarts(
       continue;
     }
 
-    const found = srcLine.indexOf(contentLine);
+    const found = srcLine.indexOf(contentLine, i === 0 ? sourceStart : undefined);
     starts.set(lineNo, found === -1 ? 0 : found);
   }
 

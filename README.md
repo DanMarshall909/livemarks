@@ -1,6 +1,6 @@
 # Livemarks
 
-Semi-WYSIWYG markdown styling for VS Code. Bold text appears **bold** in the editor. Italic text appears *italic*. Headings scale to size. The markdown syntax stays visible — just dimmed — so you never lose the source.
+Semi-WYSIWYG markdown styling for VS Code. Bold text appears **bold** in the editor. Italic text appears *italic*. Headings stand out in color. The markdown syntax stays visible — just dimmed — so you never lose the source.
 
 It's the middle ground between a plain text editor and a full preview panel.
 
@@ -11,10 +11,11 @@ It's the middle ground between a plain text editor and a full preview panel.
 | `**bold**` | **bold** (markers dimmed) |
 | `*italic*` or `_italic_` | *italic* (markers dimmed) |
 | `~~strikethrough~~` | ~~strikethrough~~ (markers dimmed) |
-| `# Heading 1` | Heading text at 2× size, `#` dimmed |
-| `## Heading 2` | 1.5× size |
-| `### Heading 3` | 1.3× size |
-| `#### H4` · `##### H5` · `###### H6` | 1.15× · 1.0× · 0.9× |
+| `* item`, `- item`, `+ item` | Indented bullet marker |
+| `# Heading 1` | Colored heading text, `#` dimmed |
+| `## Heading 2` | Different heading color, `##` dimmed |
+| `### Heading 3` | Different heading color, `###` dimmed |
+| `#### H4` · `##### H5` · `###### H6` | Colored heading text, markers dimmed |
 
 No webview. No mode switching. Works in any VS Code theme, alongside any other extension.
 
@@ -39,11 +40,12 @@ Decorations are re-applied 150 ms after each edit (debounced), with no perceptib
 ## Roadmap
 
 - [x] Bold, italic, strikethrough
-- [x] Headings H1–H6 at scaled font sizes
+- [x] Headings H1–H6
 - [ ] Inline code and fenced code blocks
 - [ ] Links
 - [ ] Blockquotes
-- [ ] Lists
+- [x] Bullet list markers
+- [ ] Ordered lists
 
 ## Development
 

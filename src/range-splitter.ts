@@ -22,7 +22,7 @@ export function splitRanges(
   mode: string,
 ): SplitResult {
   const byKind: Record<RangeKind, SimpleRange[]> = {
-    bold: [], italic: [], strike: [], syntax: [], code: [],
+    bold: [], italic: [], strike: [], syntax: [], code: [], listMarker: [],
     heading1: [], heading2: [], heading3: [],
     heading4: [], heading5: [], heading6: [],
   };

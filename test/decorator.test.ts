@@ -96,6 +96,18 @@ describe('splitRanges', () => {
     });
   });
 
+  describe('list markers', () => {
+    it('list marker ranges land in the listMarker bucket', () => {
+      const { byKind, hiddenSyntax } = splitRanges(
+        [sr('listMarker', 0, 0, 0, 1)],
+        new Set(),
+        'hidden',
+      );
+      expect(byKind.listMarker).toEqual([plain(0, 0, 0, 1)]);
+      expect(hiddenSyntax).toHaveLength(0);
+    });
+  });
+
   describe('range coordinates are preserved', () => {
     it('multi-line range coordinates pass through unchanged', () => {
       const { byKind } = splitRanges(

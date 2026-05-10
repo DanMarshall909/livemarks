@@ -75,6 +75,30 @@ describe('parseMarkdown', () => {
   });
 
   describe('block prefixes', () => {
+    it('emits a list marker range for bullet items', () => {
+      const markers = pick(parseMarkdown('* item'), 'listMarker');
+      expect(markers).toHaveLength(1);
+      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 2 });
+    });
+
+    it('emits nested list markers at their source indentation', () => {
+      const markers = pick(parseMarkdown('* parent\n  - child\n    + grandchild'), 'listMarker');
+      expect(markers).toHaveLength(3);
+      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 2 });
+      expect(markers[1]).toMatchObject({ startLine: 1, startChar: 2, endLine: 1, endChar: 4 });
+      expect(markers[2]).toMatchObject({ startLine: 2, startChar: 4, endLine: 2, endChar: 6 });
+    });
+
+    it('includes all spaces after the bullet marker so the paragraph can be offset', () => {
+      const markers = pick(parseMarkdown('*   item'), 'listMarker');
+      expect(markers).toHaveLength(1);
+      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 4 });
+    });
+
+    it('does not treat ordered list markers as bullet markers', () => {
+      expect(pick(parseMarkdown('1. item'), 'listMarker')).toHaveLength(0);
+    });
+
     it('offsets emphasis inside bullet list items', () => {
       const source = '* **/task** is wired to `node scripts/prd.cjs`';
       const ranges = parseMarkdown(source);
@@ -158,6 +182,28 @@ describe('parseMarkdown', () => {
     });
   });
 
+  describe('tables', () => {
+    it('decorates inline content inside table header cells', () => {
+      const ranges = parseMarkdown('| Col **A** | `B` and *C* |\n|---|---|');
+      expect(pick(ranges, 'bold')[0]).toMatchObject({ startLine: 0, startChar: 8, endLine: 0, endChar: 9 });
+      expect(pick(ranges, 'code')[0]).toMatchObject({ startLine: 0, startChar: 15, endLine: 0, endChar: 16 });
+      expect(pick(ranges, 'italic')[0]).toMatchObject({ startLine: 0, startChar: 23, endLine: 0, endChar: 24 });
+    });
+
+    it('decorates inline content inside table body cells', () => {
+      const ranges = parseMarkdown('| A | B |\n|---|---|\n| **x** | `y` |');
+      expect(pick(ranges, 'bold')[0]).toMatchObject({ startLine: 2, startChar: 4, endLine: 2, endChar: 5 });
+      expect(pick(ranges, 'code')[0]).toMatchObject({ startLine: 2, startChar: 11, endLine: 2, endChar: 12 });
+    });
+
+    it('locates repeated inline content in later table cells', () => {
+      const code = pick(parseMarkdown('| `x` | `x` |\n|---|---|'), 'code');
+      expect(code).toHaveLength(2);
+      expect(code[0]).toMatchObject({ startLine: 0, startChar: 3, endLine: 0, endChar: 4 });
+      expect(code[1]).toMatchObject({ startLine: 0, startChar: 9, endLine: 0, endChar: 10 });
+    });
+  });
+
   describe('headings', () => {
     it('h1 emits a heading1 range for the content', () => {
       const ranges = pick(parseMarkdown('# Hello'), 'heading1');
@@ -218,13 +264,32 @@ describe('parseMarkdown', () => {
       expect(ranges[0].endChar).toBe(10); // "Heading" ends at 10
     });
 
-    it('inline emphasis inside a heading produces no bold/syntax ranges (known limitation)', () => {
-      // Headings do not recurse into inline children — the whole content is
-      // covered by one heading{N} range.
+    it('inline emphasis markers inside a heading are syntax, not heading text', () => {
       const source = '# **bold** title';
       expect(pick(parseMarkdown(source), 'bold')).toHaveLength(0);
       const heading = pick(parseMarkdown(source), 'heading1');
-      expect(heading).toHaveLength(1);
+      expect(heading).toHaveLength(2);
+      expect(heading[0]).toMatchObject({ startChar: 4, endChar: 8 });
+      expect(heading[1]).toMatchObject({ startChar: 10, endChar: 16 });
+      const syntax = pick(parseMarkdown(source), 'syntax');
+      expect(syntax).toHaveLength(3);
+      expect(syntax[1]).toMatchObject({ startChar: 2, endChar: 4 });
+      expect(syntax[2]).toMatchObject({ startChar: 8, endChar: 10 });
+    });
+
+    it('backtick markers inside a heading are syntax, not heading text', () => {
+      const ranges = parseMarkdown('# Use `code` now');
+      const heading = pick(ranges, 'heading1');
+      const syntax = pick(ranges, 'syntax');
+      const code = pick(ranges, 'code');
+      expect(heading).toHaveLength(2);
+      expect(heading[0]).toMatchObject({ startChar: 2, endChar: 6 });
+      expect(heading[1]).toMatchObject({ startChar: 12, endChar: 16 });
+      expect(syntax).toHaveLength(3);
+      expect(syntax[1]).toMatchObject({ startChar: 6, endChar: 7 });
+      expect(syntax[2]).toMatchObject({ startChar: 11, endChar: 12 });
+      expect(code).toHaveLength(1);
+      expect(code[0]).toMatchObject({ startChar: 7, endChar: 11 });
     });
   });
 
