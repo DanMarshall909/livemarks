@@ -81,7 +81,7 @@ export function parseMarkdown(source: string): StyledRange[] {
         // NOTE: inline children inside headings (e.g. **bold** in # Title) are
         // intentionally not walked here — heading ranges cover the whole content span.
       } else {
-        walkInline(block.children, line, ranges);
+        walkInline(block.children, line, lines, block.content, ranges);
       }
     }
   }
@@ -97,14 +97,33 @@ interface OpenMarker {
   char: number;
 }
 
+// Find the position of the closing backtick sequence in srcLine, starting from
+// `start`, verifying it is an exact backtick string (not part of a longer run).
+function findCodeClose(srcLine: string, start: number, markup: string): number {
+  const mlen = markup.length;
+  let pos = start;
+  while (pos <= srcLine.length - mlen) {
+    const found = srcLine.indexOf(markup, pos);
+    if (found === -1) return -1;
+    const before = found > 0 ? srcLine[found - 1] : '';
+    const after = found + mlen < srcLine.length ? srcLine[found + mlen] : '';
+    if (before !== '`' && after !== '`') return found;
+    pos = found + 1;
+  }
+  return -1;
+}
+
 function walkInline(
   children: MarkdownIt.Token[],
   startLine: number,
+  lines: string[],
+  sourceContent: string,
   out: StyledRange[]
 ): void {
+  const lineStarts = findInlineLineStarts(lines, startLine, sourceContent);
   // We track a (line, char) cursor advancing through the block source.
   let curLine = startLine;
-  let curChar = 0;
+  let curChar = lineStarts.get(curLine) ?? 0;
 
   const stack: OpenMarker[] = [];
 
@@ -160,18 +179,19 @@ function walkInline(
 
     } else if (child.type === 'code_inline') {
       const mlen = child.markup.length;
-      const clen = child.content.length;
-      // NOTE: markdown-it strips one leading/trailing space per CommonMark 6.1,
-      // so clen may be shorter than the actual source span for ` padded ` spans.
-      // Ranges computed here will be off by the stripped spaces in that rare case.
+      const srcLine = lines[curLine] ?? '';
+      const closeAt = findCodeClose(srcLine, curChar + mlen, child.markup);
+      // Fall back to content.length if the closing sequence isn't on this line
+      // (multi-line code spans are extremely rare).
+      const contentLen = closeAt === -1 ? child.content.length : closeAt - (curChar + mlen);
       out.push({ kind: 'syntax', startLine: curLine, startChar: curChar, endLine: curLine, endChar: curChar + mlen });
-      out.push({ kind: 'code', startLine: curLine, startChar: curChar + mlen, endLine: curLine, endChar: curChar + mlen + clen });
-      out.push({ kind: 'syntax', startLine: curLine, startChar: curChar + mlen + clen, endLine: curLine, endChar: curChar + 2 * mlen + clen });
-      curChar += 2 * mlen + clen;
+      out.push({ kind: 'code', startLine: curLine, startChar: curChar + mlen, endLine: curLine, endChar: curChar + mlen + contentLen });
+      out.push({ kind: 'syntax', startLine: curLine, startChar: curChar + mlen + contentLen, endLine: curLine, endChar: curChar + 2 * mlen + contentLen });
+      curChar += 2 * mlen + contentLen;
 
     } else if (child.type === 'softbreak' || child.type === 'hardbreak') {
       curLine += 1;
-      curChar = 0;
+      curChar = lineStarts.get(curLine) ?? 0;
 
     } else {
       // text, html_inline, etc. — advance by content length
@@ -189,4 +209,29 @@ function walkInline(
       }
     }
   }
+}
+
+function findInlineLineStarts(
+  lines: string[],
+  startLine: number,
+  sourceContent: string,
+): Map<number, number> {
+  const starts = new Map<number, number>();
+  const contentLines = sourceContent.split('\n');
+
+  for (let i = 0; i < contentLines.length; i++) {
+    const lineNo = startLine + i;
+    const srcLine = lines[lineNo] ?? '';
+    const contentLine = contentLines[i] ?? '';
+
+    if (contentLine.length === 0) {
+      starts.set(lineNo, 0);
+      continue;
+    }
+
+    const found = srcLine.indexOf(contentLine);
+    starts.set(lineNo, found === -1 ? 0 : found);
+  }
+
+  return starts;
 }

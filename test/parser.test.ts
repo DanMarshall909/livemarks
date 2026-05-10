@@ -74,8 +74,31 @@ describe('parseMarkdown', () => {
     });
   });
 
+  describe('block prefixes', () => {
+    it('offsets emphasis inside bullet list items', () => {
+      const source = '* **/task** is wired to `node scripts/prd.cjs`';
+      const ranges = parseMarkdown(source);
+      expect(pick(ranges, 'bold')[0]).toMatchObject({ startLine: 0, startChar: 4, endLine: 0, endChar: 9 });
+      expect(pick(ranges, 'code')[0]).toMatchObject({ startLine: 0, startChar: 25, endLine: 0, endChar: 45 });
+    });
+
+    it('offsets nested list items from their source indentation', () => {
+      const source = '* parent\n  * nested **bold** and `code`';
+      const ranges = parseMarkdown(source);
+      expect(pick(ranges, 'bold')[0]).toMatchObject({ startLine: 1, startChar: 13, endLine: 1, endChar: 17 });
+      expect(pick(ranges, 'code')[0]).toMatchObject({ startLine: 1, startChar: 25, endLine: 1, endChar: 29 });
+    });
+
+    it('offsets emphasis and code inside blockquotes', () => {
+      const source = '> **quote** `code`';
+      const ranges = parseMarkdown(source);
+      expect(pick(ranges, 'bold')[0]).toMatchObject({ startLine: 0, startChar: 4, endLine: 0, endChar: 9 });
+      expect(pick(ranges, 'code')[0]).toMatchObject({ startLine: 0, startChar: 13, endLine: 0, endChar: 17 });
+    });
+  });
+
   describe('code span', () => {
-    it('emits a code range for the inner text', () => {
+    it('emits a code range over the content only (not the backtick markers)', () => {
       const ranges = pick(parseMarkdown('`hello`'), 'code');
       expect(ranges).toHaveLength(1);
       expect(ranges[0]).toMatchObject({ startLine: 0, startChar: 1, endLine: 0, endChar: 6 });
@@ -116,6 +139,22 @@ describe('parseMarkdown', () => {
       const bold = pick(parseMarkdown(source), 'bold');
       expect(bold).toHaveLength(1);
       expect(bold[0]).toMatchObject({ startChar: 9, endChar: 13 });
+    });
+
+    it('padded code span includes surrounding spaces in the code range', () => {
+      // CommonMark 6.1: markdown-it strips one leading/trailing space from content,
+      // but the source span includes them — the code range must cover the full source content.
+      const ranges = pick(parseMarkdown('` hello `'), 'code');
+      expect(ranges).toHaveLength(1);
+      expect(ranges[0]).toMatchObject({ startChar: 1, endChar: 8 }); // " hello "
+    });
+
+    it('padded code span: cursor advances correctly so subsequent ranges are not offset', () => {
+      const source = '` hello ` **bold**';
+      const bold = pick(parseMarkdown(source), 'bold');
+      expect(bold).toHaveLength(1);
+      // ` hello ` = 9 chars, space = 1, ** = 2 → bold content starts at 12
+      expect(bold[0]).toMatchObject({ startChar: 12, endChar: 16 });
     });
   });
 
