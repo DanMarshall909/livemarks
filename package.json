@@ -3,36 +3,100 @@
   "displayName": "Livemarks",
   "description": "Semi-WYSIWYG markdown styling: bold appears bold, italic italic, headings scale — right in the editor.",
   "version": "0.1.0",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Other"],
-  "activationEvents": ["onLanguage:markdown"],
+  "publisher": "DanMarshall909",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/DanMarshall909/livemarks.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DanMarshall909/livemarks/issues"
+  },
+  "homepage": "https://github.com/DanMarshall909/livemarks#readme",
+  "keywords": [
+    "markdown",
+    "wysiwyg",
+    "editor",
+    "decorations",
+    "preview"
+  ],
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "configuration": {
       "title": "Livemarks",
       "properties": {
+        "livemarks.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable Livemarks decorations. When false, all decorations are cleared and the extension idles."
+        },
         "livemarks.syntaxMarkers": {
           "type": "string",
-          "enum": ["dimmed", "hidden"],
+          "enum": [
+            "dimmed",
+            "hidden"
+          ],
           "enumDescriptions": [
             "Syntax markers (**, *, ##, ~~) are always visible at reduced opacity.",
-            "Syntax markers are invisible on all lines except the one containing the cursor."
+            "Syntax markers are hidden on all lines except the one containing the cursor."
           ],
           "default": "hidden",
           "description": "Controls how markdown syntax markers are displayed in the editor."
+        },
+        "livemarks.maxDocumentLines": {
+          "type": "number",
+          "default": 5000,
+          "minimum": 100,
+          "description": "Documents longer than this line count are not decorated to avoid input lag."
+        },
+        "livemarks.headingScales": {
+          "type": "array",
+          "items": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 4
+          },
+          "minItems": 6,
+          "maxItems": 6,
+          "default": [
+            2,
+            1.5,
+            1.3,
+            1.15,
+            1,
+            1
+          ],
+          "description": "Font-size multipliers for H1 through H6 headings (six values)."
         }
       }
     }
   },
   "scripts": {
+    "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "package": "vsce package",
+    "lint": "eslint src test --ext .ts"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^20.0.0",
     "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.2",
+    "@typescript-eslint/parser": "^8.59.2",
+    "@vscode/vsce": "^3.9.1",
+    "eslint": "^10.3.0",
     "typescript": "^5.3.0",
     "vitest": "^1.6.0"
   },

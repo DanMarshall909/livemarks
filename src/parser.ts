@@ -1,7 +1,7 @@
 import MarkdownIt from 'markdown-it';
 
 export type RangeKind =
-  | 'bold' | 'italic' | 'strike' | 'syntax'
+  | 'bold' | 'italic' | 'strike' | 'syntax' | 'code'
   | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'heading5' | 'heading6';
 
 export interface StyledRange {
@@ -37,7 +37,9 @@ export function parseMarkdown(source: string): StyledRange[] {
 
   for (const block of blockTokens) {
     if (block.type === 'heading_open' && block.map) {
-      headingLevel = parseInt(block.tag[1], 10); // 'h2' → 2
+      const level = parseInt(block.tag[1], 10); // 'h2' → 2
+      if (level < 1 || level > 6 || !Number.isFinite(level)) continue;
+      headingLevel = level;
       headingMarkupLen = block.markup.length;
       const line = block.map[0];
       ranges.push({ kind: 'syntax', startLine: line, startChar: 0, endLine: line, endChar: headingMarkupLen });
@@ -50,15 +52,36 @@ export function parseMarkdown(source: string): StyledRange[] {
       const line = block.map[0];
 
       if (headingLevel !== null) {
-        const contentStart = headingMarkupLen + 1; // skip the trailing space after #
-        ranges.push({
-          kind: `heading${headingLevel}` as RangeKind,
-          startLine: line, startChar: contentStart,
-          endLine: line, endChar: contentStart + block.content.length,
-        });
+        // Locate the actual content span in the source line rather than using
+        // block.content.length, which can diverge for ATX-closed headings,
+        // escaped characters, or non-standard whitespace after the # markers.
+        const srcLine = lines[line] ?? '';
+        let contentStart = headingMarkupLen;
+        // skip whitespace between markers and content
+        while (contentStart < srcLine.length && (srcLine[contentStart] === ' ' || srcLine[contentStart] === '\t')) {
+          contentStart++;
+        }
+        // end before any trailing closing # sequence and whitespace (ATX-closed)
+        let contentEnd = srcLine.length;
+        const trailingMatch = srcLine.match(/\s+#+\s*$/);
+        if (trailingMatch) {
+          contentEnd = srcLine.length - trailingMatch[0].length;
+        }
+        // strip trailing whitespace
+        while (contentEnd > contentStart && (srcLine[contentEnd - 1] === ' ' || srcLine[contentEnd - 1] === '\t')) {
+          contentEnd--;
+        }
+        if (contentEnd > contentStart) {
+          ranges.push({
+            kind: `heading${headingLevel}` as RangeKind,
+            startLine: line, startChar: contentStart,
+            endLine: line, endChar: contentEnd,
+          });
+        }
+        // NOTE: inline children inside headings (e.g. **bold** in # Title) are
+        // intentionally not walked here — heading ranges cover the whole content span.
       } else {
-        const blockSource = lines.slice(line, block.map[1]).join('\n');
-        walkInline(block.children, line, blockSource, ranges);
+        walkInline(block.children, line, ranges);
       }
     }
   }
@@ -77,7 +100,6 @@ interface OpenMarker {
 function walkInline(
   children: MarkdownIt.Token[],
   startLine: number,
-  blockSource: string,
   out: StyledRange[]
 ): void {
   // We track a (line, char) cursor advancing through the block source.
@@ -136,12 +158,23 @@ function walkInline(
       });
       curChar += mlen;
 
+    } else if (child.type === 'code_inline') {
+      const mlen = child.markup.length;
+      const clen = child.content.length;
+      // NOTE: markdown-it strips one leading/trailing space per CommonMark 6.1,
+      // so clen may be shorter than the actual source span for ` padded ` spans.
+      // Ranges computed here will be off by the stripped spaces in that rare case.
+      out.push({ kind: 'syntax', startLine: curLine, startChar: curChar, endLine: curLine, endChar: curChar + mlen });
+      out.push({ kind: 'code', startLine: curLine, startChar: curChar + mlen, endLine: curLine, endChar: curChar + mlen + clen });
+      out.push({ kind: 'syntax', startLine: curLine, startChar: curChar + mlen + clen, endLine: curLine, endChar: curChar + 2 * mlen + clen });
+      curChar += 2 * mlen + clen;
+
     } else if (child.type === 'softbreak' || child.type === 'hardbreak') {
       curLine += 1;
       curChar = 0;
 
     } else {
-      // text, code_inline, html_inline, etc. — advance by content length
+      // text, html_inline, etc. — advance by content length
       const content = child.content;
       if (!content) continue;
 

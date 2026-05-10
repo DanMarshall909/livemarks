@@ -74,12 +74,48 @@ describe('parseMarkdown', () => {
     });
   });
 
-  describe('code span exclusion', () => {
-    it('does not style ** inside a code span', () => {
-      // markdown-it treats `**not bold**` as code, so no bold/italic ranges expected
+  describe('code span', () => {
+    it('emits a code range for the inner text', () => {
+      const ranges = pick(parseMarkdown('`hello`'), 'code');
+      expect(ranges).toHaveLength(1);
+      expect(ranges[0]).toMatchObject({ startLine: 0, startChar: 1, endLine: 0, endChar: 6 });
+    });
+
+    it('emits two syntax ranges for the backtick markers', () => {
+      const syntax = pick(parseMarkdown('`hello`'), 'syntax');
+      expect(syntax).toHaveLength(2);
+      expect(syntax[0]).toMatchObject({ startChar: 0, endChar: 1 });
+      expect(syntax[1]).toMatchObject({ startChar: 6, endChar: 7 });
+    });
+
+    it('double-backtick span uses markup length of 2', () => {
+      // ``hello``
+      const source = '``hello``';
+      const code = pick(parseMarkdown(source), 'code');
+      expect(code).toHaveLength(1);
+      expect(code[0]).toMatchObject({ startChar: 2, endChar: 7 });
+    });
+
+    it('does not emit bold/italic ranges inside a code span', () => {
       const source = '`**not bold**`';
       expect(pick(parseMarkdown(source), 'bold')).toHaveLength(0);
-      expect(pick(parseMarkdown(source), 'syntax')).toHaveLength(0);
+    });
+
+    it('backtick markers of a code span appear as syntax ranges', () => {
+      // The backticks themselves should be treated as syntax markers (2 of them)
+      const source = '`**not bold**`';
+      const syntax = pick(parseMarkdown(source), 'syntax');
+      expect(syntax).toHaveLength(2);
+      expect(syntax[0]).toMatchObject({ startChar: 0, endChar: 1 });
+      expect(syntax[1]).toMatchObject({ startChar: 13, endChar: 14 });
+    });
+
+    it('code span followed by bold: bold range is correctly positioned', () => {
+      // `code` **bold** — verifies cursor advances past the code span correctly
+      const source = '`code` **bold**';
+      const bold = pick(parseMarkdown(source), 'bold');
+      expect(bold).toHaveLength(1);
+      expect(bold[0]).toMatchObject({ startChar: 9, endChar: 13 });
     });
   });
 
@@ -121,6 +157,52 @@ describe('parseMarkdown', () => {
     it('paragraph bold still works after a heading', () => {
       const ranges = pick(parseMarkdown('# Title\n\n**bold**'), 'bold');
       expect(ranges).toHaveLength(1);
+    });
+
+    it('extra spaces between # and title still locates content correctly', () => {
+      const ranges = pick(parseMarkdown('#  Title'), 'heading1');
+      expect(ranges).toHaveLength(1);
+      expect(ranges[0].startChar).toBe(3); // skip '#' + two spaces
+      expect(ranges[0].endChar).toBe(8);
+    });
+
+    it('ATX-closed heading strips the trailing # sequence', () => {
+      const ranges = pick(parseMarkdown('# Title #'), 'heading1');
+      expect(ranges).toHaveLength(1);
+      expect(ranges[0].startChar).toBe(2);
+      expect(ranges[0].endChar).toBe(7); // "Title" only
+    });
+
+    it('trailing whitespace on heading line does not bloat the range', () => {
+      const ranges = pick(parseMarkdown('## Heading   '), 'heading2');
+      expect(ranges).toHaveLength(1);
+      expect(ranges[0].endChar).toBe(10); // "Heading" ends at 10
+    });
+
+    it('inline emphasis inside a heading produces no bold/syntax ranges (known limitation)', () => {
+      // Headings do not recurse into inline children — the whole content is
+      // covered by one heading{N} range.
+      const source = '# **bold** title';
+      expect(pick(parseMarkdown(source), 'bold')).toHaveLength(0);
+      const heading = pick(parseMarkdown(source), 'heading1');
+      expect(heading).toHaveLength(1);
+    });
+  });
+
+  describe('multi-line inline content', () => {
+    it('bold spanning two lines has correct start and end lines', () => {
+      const source = '**line one\nline two**';
+      const ranges = pick(parseMarkdown(source), 'bold');
+      expect(ranges).toHaveLength(1);
+      expect(ranges[0].startLine).toBe(0);
+      expect(ranges[0].endLine).toBe(1);
+    });
+
+    it('softbreak tokens advance curLine so bold on line 3 is located correctly', () => {
+      const source = 'a\nb\n**x**';
+      const bold = pick(parseMarkdown(source), 'bold');
+      expect(bold).toHaveLength(1);
+      expect(bold[0].startLine).toBe(2);
     });
   });
 

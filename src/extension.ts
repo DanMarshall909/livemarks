@@ -7,21 +7,36 @@ function cursorLines(editor: vscode.TextEditor): Set<number> {
 
 export function activate(context: vscode.ExtensionContext): void {
   const decorator = new MarkdownDecorator();
+  const output = vscode.window.createOutputChannel('Livemarks');
 
-  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  // Per-URI debounce timers so concurrent edits to different documents don't
+  // drop one another's decoration updates.
+  const debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   function decorateEditor(editor: vscode.TextEditor): void {
-    decorator.apply(editor, cursorLines(editor));
+    try {
+      decorator.apply(editor, cursorLines(editor));
+    } catch (err) {
+      output.appendLine(`[error] ${err instanceof Error ? err.message : String(err)}`);
+      decorator.clear(editor);
+    }
   }
 
   function scheduleDecorate(editor: vscode.TextEditor): void {
-    if (debounceTimer) clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => decorateEditor(editor), 150);
+    const key = editor.document.uri.toString();
+    const prev = debounceTimers.get(key);
+    if (prev) clearTimeout(prev);
+    debounceTimers.set(key, setTimeout(() => {
+      debounceTimers.delete(key);
+      decorateEditor(editor);
+    }, 150));
   }
 
-  // Decorate all markdown editors already open at activation
+  // Decorate markdown editors already open at activation; skip others.
   for (const editor of vscode.window.visibleTextEditors) {
-    decorateEditor(editor);
+    if (editor.document.languageId === 'markdown') {
+      decorateEditor(editor);
+    }
   }
 
   context.subscriptions.push(
@@ -29,6 +44,8 @@ export function activate(context: vscode.ExtensionContext): void {
       if (editor) decorateEditor(editor);
     }),
 
+    // VS Code propagates decoration types across all editors sharing the same
+    // document, so finding one visible editor per document is sufficient.
     vscode.workspace.onDidChangeTextDocument(event => {
       const editor = vscode.window.visibleTextEditors.find(
         e => e.document === event.document
@@ -42,14 +59,26 @@ export function activate(context: vscode.ExtensionContext): void {
 
     vscode.workspace.onDidChangeConfiguration(event => {
       if (event.affectsConfiguration('livemarks')) {
+        decorator.refreshConfig();
         for (const editor of vscode.window.visibleTextEditors) {
-          decorator.reposition(editor, cursorLines(editor));
+          // apply() handles the enabled=false case by calling clear().
+          decorateEditor(editor);
         }
       }
     }),
 
-    { dispose: () => { if (debounceTimer) clearTimeout(debounceTimer); } },
+    vscode.workspace.onDidCloseTextDocument(document => {
+      decorator.evict(document.uri);
+    }),
+
+    {
+      dispose: () => {
+        for (const timer of debounceTimers.values()) clearTimeout(timer);
+        debounceTimers.clear();
+      }
+    },
     { dispose: () => decorator.dispose() },
+    { dispose: () => output.dispose() },
   );
 }
 

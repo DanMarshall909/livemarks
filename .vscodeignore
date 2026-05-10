@@ -1,8 +1,9 @@
-.vscode/**
-.vscode-test/**
 src/**
 test/**
-node_modules/**
-.gitignore
+out/**/*.map
 tsconfig.json
-**/*.map
+vitest.config.ts
+.eslintrc.json
+.github/**
+node_modules/**
+*.vsix
