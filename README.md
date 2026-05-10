@@ -12,6 +12,10 @@ It's the middle ground between a plain text editor and a full preview panel.
 | `*italic*` or `_italic_` | *italic* (markers dimmed) |
 | `~~strikethrough~~` | ~~strikethrough~~ (markers dimmed) |
 | `* item`, `- item`, `+ item` | Indented bullet marker |
+| `1. item`, `2) item` | Indented ordered marker |
+| `> quote` | Quote bar marker |
+| `` `code` `` and fenced code | Code background with syntax markers dimmed |
+| `[label](url)` | Link label colored and underlined, URL syntax dimmed |
 | `# Heading 1` | Colored heading text, `#` dimmed |
 | `## Heading 2` | Different heading color, `##` dimmed |
 | `### Heading 3` | Different heading color, `###` dimmed |
@@ -41,11 +45,11 @@ Decorations are re-applied 150 ms after each edit (debounced), with no perceptib
 
 - [x] Bold, italic, strikethrough
 - [x] Headings H1–H6
-- [ ] Inline code and fenced code blocks
-- [ ] Links
-- [ ] Blockquotes
+- [x] Inline code and fenced code blocks
+- [x] Links
+- [x] Blockquotes
 - [x] Bullet list markers
-- [ ] Ordered lists
+- [x] Ordered lists
 
 ## Development
 

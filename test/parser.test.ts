@@ -96,7 +96,22 @@ describe('parseMarkdown', () => {
     });
 
     it('does not treat ordered list markers as bullet markers', () => {
-      expect(pick(parseMarkdown('1. item'), 'listMarker')).toHaveLength(0);
+      const markers = pick(parseMarkdown('1. item'), 'listMarker');
+      expect(markers).toHaveLength(1);
+      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 3, replacementText: '  1.  ' });
+    });
+
+    it('emits ordered list markers with their source number', () => {
+      const markers = pick(parseMarkdown('42) item'), 'listMarker');
+      expect(markers).toHaveLength(1);
+      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 4, replacementText: '  42)  ' });
+    });
+
+    it('emits quote marker ranges for blockquotes', () => {
+      const markers = pick(parseMarkdown('> quote\n> more'), 'quoteMarker');
+      expect(markers).toHaveLength(2);
+      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 2, replacementText: '│ ' });
+      expect(markers[1]).toMatchObject({ startLine: 1, startChar: 0, endLine: 1, endChar: 2, replacementText: '│ ' });
     });
 
     it('offsets emphasis inside bullet list items', () => {
@@ -179,6 +194,38 @@ describe('parseMarkdown', () => {
       expect(bold).toHaveLength(1);
       // ` hello ` = 9 chars, space = 1, ** = 2 → bold content starts at 12
       expect(bold[0]).toMatchObject({ startChar: 12, endChar: 16 });
+    });
+  });
+
+  describe('fenced code blocks', () => {
+    it('emits codeBlock ranges for fenced code content and syntax for fences', () => {
+      const ranges = parseMarkdown('```ts\nconst x = 1;\n```');
+      expect(pick(ranges, 'codeBlock')).toEqual([
+        { kind: 'codeBlock', startLine: 1, startChar: 0, endLine: 1, endChar: 12 },
+      ]);
+      const syntax = pick(ranges, 'syntax');
+      expect(syntax).toHaveLength(2);
+      expect(syntax[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 5 });
+      expect(syntax[1]).toMatchObject({ startLine: 2, startChar: 0, endLine: 2, endChar: 3 });
+    });
+  });
+
+  describe('links', () => {
+    it('emits link text and syntax ranges for inline links', () => {
+      const ranges = parseMarkdown('[label](https://example.test)');
+      expect(pick(ranges, 'link')).toEqual([
+        { kind: 'link', startLine: 0, startChar: 1, endLine: 0, endChar: 6 },
+      ]);
+      const syntax = pick(ranges, 'syntax');
+      expect(syntax).toHaveLength(2);
+      expect(syntax[0]).toMatchObject({ startChar: 0, endChar: 1 });
+      expect(syntax[1]).toMatchObject({ startChar: 6, endChar: 29 });
+    });
+
+    it('keeps nested emphasis inside link labels positioned from source text', () => {
+      const ranges = parseMarkdown('[label **b**](https://example.test)');
+      expect(pick(ranges, 'link')[0]).toMatchObject({ startChar: 1, endChar: 12 });
+      expect(pick(ranges, 'bold')[0]).toMatchObject({ startChar: 9, endChar: 10 });
     });
   });
 

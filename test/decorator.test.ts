@@ -99,11 +99,11 @@ describe('splitRanges', () => {
   describe('list markers', () => {
     it('list marker ranges land in the listMarker bucket', () => {
       const { byKind, hiddenSyntax } = splitRanges(
-        [sr('listMarker', 0, 0, 0, 1)],
+        [{ ...sr('listMarker', 0, 0, 0, 1), replacementText: '  •  ' }],
         new Set(),
         'hidden',
       );
-      expect(byKind.listMarker).toEqual([plain(0, 0, 0, 1)]);
+      expect(byKind.listMarker).toEqual([{ ...plain(0, 0, 0, 1), replacementText: '  •  ' }]);
       expect(hiddenSyntax).toHaveLength(0);
     });
   });

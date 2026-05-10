@@ -1,7 +1,8 @@
 import MarkdownIt from 'markdown-it';
 
 export type RangeKind =
-  | 'bold' | 'italic' | 'strike' | 'syntax' | 'code' | 'listMarker'
+  | 'bold' | 'italic' | 'strike' | 'syntax' | 'code' | 'codeBlock'
+  | 'link' | 'listMarker' | 'quoteMarker'
   | 'heading1' | 'heading2' | 'heading3' | 'heading4' | 'heading5' | 'heading6';
 
 export interface StyledRange {
@@ -10,6 +11,7 @@ export interface StyledRange {
   startChar: number;
   endLine: number;
   endChar: number;
+  replacementText?: string;
 }
 
 const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
@@ -38,19 +40,37 @@ export function parseMarkdown(source: string): StyledRange[] {
   const tableLineSearchStarts = new Map<number, number>();
 
   for (const block of blockTokens) {
-    if (block.type === 'list_item_open' && block.map && isBulletMarkup(block.markup)) {
+    if (block.type === 'list_item_open' && block.map) {
       const line = block.map[0];
-      const markerStart = findBulletMarkerStart(lines[line] ?? '', block.markup);
-      if (markerStart !== -1) {
-        const markerEnd = findListMarkerEnd(lines[line] ?? '', markerStart + block.markup.length);
+      const marker = findListMarker(lines[line] ?? '', block.markup);
+      if (marker) {
         ranges.push({
           kind: 'listMarker',
           startLine: line,
-          startChar: markerStart,
+          startChar: marker.start,
           endLine: line,
-          endChar: markerEnd,
+          endChar: marker.end,
+          replacementText: `  ${marker.text}  `,
         });
       }
+
+    } else if (block.type === 'blockquote_open' && block.map) {
+      for (let line = block.map[0]; line < block.map[1]; line++) {
+        const marker = findQuoteMarker(lines[line] ?? '');
+        if (marker) {
+          ranges.push({
+            kind: 'quoteMarker',
+            startLine: line,
+            startChar: marker.start,
+            endLine: line,
+            endChar: marker.end,
+            replacementText: '\u2502 ',
+          });
+        }
+      }
+
+    } else if (block.type === 'fence' && block.map) {
+      addFenceRanges(block, lines, ranges);
 
     } else if (block.type === 'heading_open' && block.map) {
       const level = parseInt(block.tag[1], 10); // 'h2' → 2
@@ -122,23 +142,72 @@ export function parseMarkdown(source: string): StyledRange[] {
   return ranges;
 }
 
+interface MarkerRange {
+  start: number;
+  end: number;
+  text: string;
+}
+
+function findListMarker(srcLine: string, markup: string): MarkerRange | null {
+  const markerStart = srcLine.search(/\S/);
+  if (markerStart === -1) return null;
+
+  if (isBulletMarkup(markup) && srcLine.startsWith(markup, markerStart)) {
+    return {
+      start: markerStart,
+      end: findMarkerEnd(srcLine, markerStart + markup.length),
+      text: '\u2022',
+    };
+  }
+
+  if (markup === '.' || markup === ')') {
+    const match = srcLine.slice(markerStart).match(/^(\d+[\.)])/);
+    if (!match) return null;
+    return {
+      start: markerStart,
+      end: findMarkerEnd(srcLine, markerStart + match[1].length),
+      text: match[1],
+    };
+  }
+
+  return null;
+}
+
 function isBulletMarkup(markup: string): boolean {
   return markup === '*' || markup === '-' || markup === '+';
 }
 
-function findBulletMarkerStart(srcLine: string, markup: string): number {
-  const markerStart = srcLine.search(/\S/);
-  if (markerStart === -1) return -1;
-  if (srcLine.startsWith(markup, markerStart)) return markerStart;
-  return -1;
-}
-
-function findListMarkerEnd(srcLine: string, start: number): number {
+function findMarkerEnd(srcLine: string, start: number): number {
   let end = start;
   while (end < srcLine.length && (srcLine[end] === ' ' || srcLine[end] === '\t')) {
     end++;
   }
   return end;
+}
+
+function findQuoteMarker(srcLine: string): Omit<MarkerRange, 'text'> | null {
+  const markerStart = srcLine.search(/\S/);
+  if (markerStart === -1 || srcLine[markerStart] !== '>') return null;
+  return {
+    start: markerStart,
+    end: findMarkerEnd(srcLine, markerStart + 1),
+  };
+}
+
+function addFenceRanges(block: MarkdownIt.Token, lines: string[], out: StyledRange[]): void {
+  if (!block.map) return;
+  const [startLine, endLineExclusive] = block.map;
+  const closeLine = endLineExclusive - 1;
+
+  out.push({ kind: 'syntax', startLine, startChar: 0, endLine: startLine, endChar: (lines[startLine] ?? '').length });
+
+  for (let line = startLine + 1; line < closeLine; line++) {
+    out.push({ kind: 'codeBlock', startLine: line, startChar: 0, endLine: line, endChar: (lines[line] ?? '').length });
+  }
+
+  if (closeLine > startLine) {
+    out.push({ kind: 'syntax', startLine: closeLine, startChar: 0, endLine: closeLine, endChar: (lines[closeLine] ?? '').length });
+  }
 }
 
 function findInlineContentStart(srcLine: string, content: string, searchStart: number): number {
@@ -216,6 +285,11 @@ interface OpenMarker {
   char: number;
 }
 
+interface LinkMarker {
+  line: number;
+  char: number;
+}
+
 // Find the position of the closing backtick sequence in srcLine, starting from
 // `start`, verifying it is an exact backtick string (not part of a longer run).
 function findCodeClose(srcLine: string, start: number, markup: string): number {
@@ -246,11 +320,38 @@ function walkInline(
   let curChar = lineStarts.get(curLine) ?? 0;
 
   const stack: OpenMarker[] = [];
+  const linkStack: LinkMarker[] = [];
 
   for (const child of children) {
     const openKind = OPEN_KINDS[child.type];
 
-    if (openKind !== undefined) {
+    if (child.type === 'link_open') {
+      const srcLine = lines[curLine] ?? '';
+      const openAt = srcLine.indexOf('[', curChar);
+      if (openAt === -1) continue;
+      out.push({ kind: 'syntax', startLine: curLine, startChar: openAt, endLine: curLine, endChar: openAt + 1 });
+      linkStack.push({ line: curLine, char: openAt + 1 });
+      curChar = openAt + 1;
+
+    } else if (child.type === 'link_close') {
+      const open = linkStack.pop();
+      const srcLine = lines[curLine] ?? '';
+      const closeAt = srcLine.indexOf('](', curChar);
+      if (closeAt === -1) continue;
+      if (open) {
+        out.push({ kind: 'link', startLine: open.line, startChar: open.char, endLine: curLine, endChar: closeAt });
+      }
+      const closeParen = findLinkClose(srcLine, closeAt + 2);
+      out.push({
+        kind: 'syntax',
+        startLine: curLine,
+        startChar: closeAt,
+        endLine: curLine,
+        endChar: closeParen === -1 ? srcLine.length : closeParen + 1,
+      });
+      curChar = closeParen === -1 ? srcLine.length : closeParen + 1;
+
+    } else if (openKind !== undefined) {
       const mlen = child.markup.length;
       // Emit syntax decoration for the opening marker
       out.push({
@@ -329,6 +430,21 @@ function walkInline(
       }
     }
   }
+}
+
+function findLinkClose(srcLine: string, start: number): number {
+  let escaped = false;
+  for (let pos = start; pos < srcLine.length; pos++) {
+    const ch = srcLine[pos];
+    if (escaped) {
+      escaped = false;
+    } else if (ch === '\\') {
+      escaped = true;
+    } else if (ch === ')') {
+      return pos;
+    }
+  }
+  return -1;
 }
 
 function findInlineLineStarts(

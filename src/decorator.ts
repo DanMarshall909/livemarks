@@ -9,12 +9,24 @@ function buildDecorationOptions(): Record<RangeKind, vscode.DecorationRenderOpti
     strike: { textDecoration: 'line-through' },
     syntax: { opacity: '0.4' },
     code: { backgroundColor: new vscode.ThemeColor('textCodeBlock.background') },
+    codeBlock: { backgroundColor: new vscode.ThemeColor('textCodeBlock.background') },
+    link: {
+      color: new vscode.ThemeColor('textLink.foreground'),
+      textDecoration: 'underline',
+    },
     listMarker: {
       color: 'transparent',
       textDecoration: 'none; font-size: 0;',
       before: {
-        contentText: '  \u2022  ',
         color: new vscode.ThemeColor('editor.foreground'),
+        fontWeight: 'bold',
+      },
+    },
+    quoteMarker: {
+      color: 'transparent',
+      textDecoration: 'none; font-size: 0;',
+      before: {
+        color: new vscode.ThemeColor('textBlockQuote.border'),
         fontWeight: 'bold',
       },
     },
@@ -90,9 +102,16 @@ export class MarkdownDecorator {
     const { byKind, hiddenSyntax } = splitRanges(styledRanges, cursorLines, this.syntaxMarkersMode);
 
     for (const kind of Object.keys(this.types) as RangeKind[]) {
-      editor.setDecorations(this.types[kind], byKind[kind].map(
-        r => new vscode.Range(r.startLine, r.startChar, r.endLine, r.endChar)
-      ));
+      editor.setDecorations(this.types[kind], byKind[kind].map(r => {
+        const range = new vscode.Range(r.startLine, r.startChar, r.endLine, r.endChar);
+        if (r.replacementText === undefined) return { range };
+        return {
+          range,
+          renderOptions: {
+            before: { contentText: r.replacementText },
+          },
+        };
+      }));
     }
     editor.setDecorations(this.hiddenSyntaxType, hiddenSyntax.map(
       r => new vscode.Range(r.startLine, r.startChar, r.endLine, r.endChar)

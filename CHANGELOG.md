@@ -16,6 +16,10 @@ All notable changes to Livemarks are documented here.
 - Bullet list marker decoration for `*`, `-`, and `+` items, preserving nested source indentation.
 - Theme-aware colorization for heading levels H1–H6.
 - Inline styling inside markdown table header and body cells.
+- Ordered list marker decoration that preserves source numbering.
+- Blockquote marker decoration.
+- Fenced code block content backgrounds.
+- Inline link label styling with URL syntax dimming.
 
 ### Fixed
 - Heading content range no longer uses `block.content.length`; instead scans the source line directly — handles extra spaces, tabs, ATX-closed headings, and trailing whitespace correctly.

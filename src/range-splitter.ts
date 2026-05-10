@@ -5,6 +5,7 @@ export interface SimpleRange {
   startChar: number;
   endLine: number;
   endChar: number;
+  replacementText?: string;
 }
 
 export interface SplitResult {
@@ -22,14 +23,23 @@ export function splitRanges(
   mode: string,
 ): SplitResult {
   const byKind: Record<RangeKind, SimpleRange[]> = {
-    bold: [], italic: [], strike: [], syntax: [], code: [], listMarker: [],
+    bold: [], italic: [], strike: [], syntax: [], code: [], codeBlock: [],
+    link: [], listMarker: [], quoteMarker: [],
     heading1: [], heading2: [], heading3: [],
     heading4: [], heading5: [], heading6: [],
   };
   const hiddenSyntax: SimpleRange[] = [];
 
   for (const sr of styledRanges) {
-    const r: SimpleRange = { startLine: sr.startLine, startChar: sr.startChar, endLine: sr.endLine, endChar: sr.endChar };
+    const r: SimpleRange = {
+      startLine: sr.startLine,
+      startChar: sr.startChar,
+      endLine: sr.endLine,
+      endChar: sr.endChar,
+    };
+    if (sr.replacementText !== undefined) {
+      r.replacementText = sr.replacementText;
+    }
     if (sr.kind === 'syntax' && mode === 'hidden') {
       if (cursorLines.has(sr.startLine)) {
         byKind.syntax.push(r);
