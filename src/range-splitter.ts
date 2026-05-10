@@ -5,7 +5,6 @@ export interface SimpleRange {
   startChar: number;
   endLine: number;
   endChar: number;
-  replacementText?: string;
 }
 
 export interface SplitResult {
@@ -14,14 +13,17 @@ export interface SplitResult {
 }
 
 /**
- * Splits StyledRanges into per-kind buckets and a hidden-syntax bucket based
- * on cursor position and syntaxMarkers mode. Pure function — no VS Code API.
+ * Splits StyledRanges into per-kind buckets. Syntax markers always remain in
+ * the syntax bucket so markdown markup stays faintly visible.
  */
 export function splitRanges(
   styledRanges: StyledRange[],
   cursorLines: Set<number>,
   mode: string,
 ): SplitResult {
+  void cursorLines;
+  void mode;
+
   const byKind: Record<RangeKind, SimpleRange[]> = {
     bold: [], italic: [], strike: [], syntax: [], code: [], codeBlock: [],
     link: [], listMarker: [], quoteMarker: [],
@@ -37,18 +39,7 @@ export function splitRanges(
       endLine: sr.endLine,
       endChar: sr.endChar,
     };
-    if (sr.replacementText !== undefined) {
-      r.replacementText = sr.replacementText;
-    }
-    if (sr.kind === 'syntax' && mode === 'hidden') {
-      if (cursorLines.has(sr.startLine)) {
-        byKind.syntax.push(r);
-      } else {
-        hiddenSyntax.push(r);
-      }
-    } else {
-      byKind[sr.kind].push(r);
-    }
+    byKind[sr.kind].push(r);
   }
 
   return { byKind, hiddenSyntax };

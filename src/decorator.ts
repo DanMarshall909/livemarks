@@ -2,45 +2,90 @@ import * as vscode from 'vscode';
 import { parseMarkdown, RangeKind, StyledRange } from './parser';
 import { splitRanges } from './range-splitter';
 
-function buildDecorationOptions(): Record<RangeKind, vscode.DecorationRenderOptions> {
+interface StyleConfig {
+  syntaxOpacity: string;
+  markerOpacity: string;
+  codeBackground: string;
+  codeBlockBackground: string;
+  linkColor: string;
+  linkUnderline: boolean;
+  headingBold: boolean;
+  headingColors: string[];
+  headingOpacities: string[];
+}
+
+const DEFAULT_STYLE_CONFIG: StyleConfig = {
+  syntaxOpacity: '0.4',
+  markerOpacity: '0.4',
+  codeBackground: 'textCodeBlock.background',
+  codeBlockBackground: 'textCodeBlock.background',
+  linkColor: 'textLink.foreground',
+  linkUnderline: true,
+  headingBold: true,
+  headingColors: [
+    'charts.blue',
+    'charts.purple',
+    'charts.green',
+    'charts.orange',
+    'charts.red',
+    'charts.yellow',
+  ],
+  headingOpacities: ['1', '1', '1', '1', '1', '0.85'],
+};
+
+function configuredThemeColor(value: string): vscode.ThemeColor | string {
+  if (/^(#|rgb\(|rgba\(|hsl\(|hsla\(|var\()/i.test(value)) return value;
+  return new vscode.ThemeColor(value);
+}
+
+function mergeStyleConfig(value: Partial<StyleConfig> | undefined): StyleConfig {
+  const cfg = value ?? {};
+  return {
+    ...DEFAULT_STYLE_CONFIG,
+    ...cfg,
+    headingColors: normalizeArray(cfg.headingColors, DEFAULT_STYLE_CONFIG.headingColors),
+    headingOpacities: normalizeArray(cfg.headingOpacities, DEFAULT_STYLE_CONFIG.headingOpacities),
+  };
+}
+
+function normalizeArray(value: string[] | undefined, fallback: string[]): string[] {
+  if (!Array.isArray(value) || value.length !== fallback.length) return fallback.slice();
+  return value.slice();
+}
+
+function headingStyle(style: StyleConfig, index: number): vscode.DecorationRenderOptions {
+  return {
+    fontWeight: style.headingBold ? 'bold' : undefined,
+    color: configuredThemeColor(style.headingColors[index]),
+    opacity: style.headingOpacities[index],
+  };
+}
+
+function buildDecorationOptions(style: StyleConfig): Record<RangeKind, vscode.DecorationRenderOptions> {
   return {
     bold: { fontWeight: 'bold' },
     italic: { fontStyle: 'italic' },
     strike: { textDecoration: 'line-through' },
-    syntax: { opacity: '0.4' },
-    code: { backgroundColor: new vscode.ThemeColor('textCodeBlock.background') },
-    codeBlock: { backgroundColor: new vscode.ThemeColor('textCodeBlock.background') },
+    syntax: { opacity: style.syntaxOpacity },
+    code: { backgroundColor: configuredThemeColor(style.codeBackground) },
+    codeBlock: { backgroundColor: configuredThemeColor(style.codeBlockBackground) },
     link: {
-      color: new vscode.ThemeColor('textLink.foreground'),
-      textDecoration: 'underline',
+      color: configuredThemeColor(style.linkColor),
+      textDecoration: style.linkUnderline ? 'underline' : undefined,
     },
-    listMarker: {
-      color: 'transparent',
-      textDecoration: 'none; font-size: 0;',
-      before: {
-        color: new vscode.ThemeColor('editor.foreground'),
-        fontWeight: 'bold',
-      },
-    },
-    quoteMarker: {
-      color: 'transparent',
-      textDecoration: 'none; font-size: 0;',
-      before: {
-        color: new vscode.ThemeColor('textBlockQuote.border'),
-        fontWeight: 'bold',
-      },
-    },
-    heading1: { fontWeight: 'bold', color: new vscode.ThemeColor('charts.blue') },
-    heading2: { fontWeight: 'bold', color: new vscode.ThemeColor('charts.purple') },
-    heading3: { fontWeight: 'bold', color: new vscode.ThemeColor('charts.green') },
-    heading4: { fontWeight: 'bold', color: new vscode.ThemeColor('charts.orange') },
-    heading5: { fontWeight: 'bold', color: new vscode.ThemeColor('charts.red') },
-    heading6: { fontWeight: 'bold', color: new vscode.ThemeColor('charts.yellow'), opacity: '0.85' },
+    listMarker: { opacity: style.markerOpacity },
+    quoteMarker: { opacity: style.markerOpacity },
+    heading1: headingStyle(style, 0),
+    heading2: headingStyle(style, 1),
+    heading3: headingStyle(style, 2),
+    heading4: headingStyle(style, 3),
+    heading5: headingStyle(style, 4),
+    heading6: headingStyle(style, 5),
   };
 }
 
-function createTypes(): Record<RangeKind, vscode.TextEditorDecorationType> {
-  const opts = buildDecorationOptions();
+function createTypes(style: StyleConfig): Record<RangeKind, vscode.TextEditorDecorationType> {
+  const opts = buildDecorationOptions(style);
   return (Object.keys(opts) as RangeKind[]).reduce((acc, k) => {
     acc[k] = vscode.window.createTextEditorDecorationType(opts[k]);
     return acc;
@@ -54,11 +99,12 @@ export class MarkdownDecorator {
 
   // Cached config values — refreshed via refreshConfig() on configuration change.
   private enabled: boolean = true;
-  private syntaxMarkersMode: string = 'hidden';
+  private syntaxMarkersMode: string = 'dimmed';
   private maxDocumentLines: number = 5000;
+  private styleConfig: StyleConfig = DEFAULT_STYLE_CONFIG;
 
   constructor() {
-    this.types = createTypes();
+    this.types = createTypes(this.styleConfig);
     this.hiddenSyntaxType = vscode.window.createTextEditorDecorationType({ opacity: '0' });
     this.refreshConfig();
   }
@@ -66,8 +112,19 @@ export class MarkdownDecorator {
   refreshConfig(): void {
     const cfg = vscode.workspace.getConfiguration('livemarks');
     this.enabled = cfg.get<boolean>('enabled', true);
-    this.syntaxMarkersMode = cfg.get<string>('syntaxMarkers', 'hidden');
+    this.syntaxMarkersMode = cfg.get<string>('syntaxMarkers', 'dimmed');
     this.maxDocumentLines = cfg.get<number>('maxDocumentLines', 5000);
+
+    const newStyleConfig = mergeStyleConfig(cfg.get<Partial<StyleConfig>>('styles'));
+    if (JSON.stringify(newStyleConfig) !== JSON.stringify(this.styleConfig)) {
+      this.styleConfig = newStyleConfig;
+      this.rebuildTypes();
+    }
+  }
+
+  private rebuildTypes(): void {
+    for (const t of Object.values(this.types)) t.dispose();
+    this.types = createTypes(this.styleConfig);
   }
 
   // Full apply: re-parses the document and caches the result.
@@ -102,16 +159,9 @@ export class MarkdownDecorator {
     const { byKind, hiddenSyntax } = splitRanges(styledRanges, cursorLines, this.syntaxMarkersMode);
 
     for (const kind of Object.keys(this.types) as RangeKind[]) {
-      editor.setDecorations(this.types[kind], byKind[kind].map(r => {
-        const range = new vscode.Range(r.startLine, r.startChar, r.endLine, r.endChar);
-        if (r.replacementText === undefined) return { range };
-        return {
-          range,
-          renderOptions: {
-            before: { contentText: r.replacementText },
-          },
-        };
-      }));
+      editor.setDecorations(this.types[kind], byKind[kind].map(
+        r => new vscode.Range(r.startLine, r.startChar, r.endLine, r.endChar)
+      ));
     }
     editor.setDecorations(this.hiddenSyntaxType, hiddenSyntax.map(
       r => new vscode.Range(r.startLine, r.startChar, r.endLine, r.endChar)

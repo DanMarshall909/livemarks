@@ -48,9 +48,9 @@
           ],
           "enumDescriptions": [
             "Syntax markers (**, *, ##, ~~) are always visible at reduced opacity.",
-            "Syntax markers are hidden on all lines except the one containing the cursor."
+            "Deprecated: syntax markers remain visible at reduced opacity."
           ],
-          "default": "hidden",
+          "default": "dimmed",
           "description": "Controls how markdown syntax markers are displayed in the editor."
         },
         "livemarks.maxDocumentLines": {
@@ -58,6 +58,107 @@
           "default": 5000,
           "minimum": 100,
           "description": "Documents longer than this line count are not decorated to avoid input lag."
+        },
+        "livemarks.styles": {
+          "type": "object",
+          "default": {
+            "syntaxOpacity": "0.4",
+            "markerOpacity": "0.4",
+            "codeBackground": "textCodeBlock.background",
+            "codeBlockBackground": "textCodeBlock.background",
+            "linkColor": "textLink.foreground",
+            "linkUnderline": true,
+            "headingBold": true,
+            "headingColors": [
+              "charts.blue",
+              "charts.purple",
+              "charts.green",
+              "charts.orange",
+              "charts.red",
+              "charts.yellow"
+            ],
+            "headingOpacities": [
+              "1",
+              "1",
+              "1",
+              "1",
+              "1",
+              "0.85"
+            ]
+          },
+          "description": "Rendering styles for Livemarks decorations. Color values can be VS Code theme color ids like charts.blue or CSS colors like #4fc1ff.",
+          "properties": {
+            "syntaxOpacity": {
+              "type": "string",
+              "default": "0.4",
+              "description": "Opacity for markdown syntax markers such as **, #, backticks, and link URLs."
+            },
+            "markerOpacity": {
+              "type": "string",
+              "default": "0.4",
+              "description": "Opacity for list and blockquote source markers."
+            },
+            "codeBackground": {
+              "type": "string",
+              "default": "textCodeBlock.background",
+              "description": "Theme color id or CSS color for inline code backgrounds."
+            },
+            "codeBlockBackground": {
+              "type": "string",
+              "default": "textCodeBlock.background",
+              "description": "Theme color id or CSS color for fenced code block backgrounds."
+            },
+            "linkColor": {
+              "type": "string",
+              "default": "textLink.foreground",
+              "description": "Theme color id or CSS color for link label text."
+            },
+            "linkUnderline": {
+              "type": "boolean",
+              "default": true,
+              "description": "Underline link label text."
+            },
+            "headingBold": {
+              "type": "boolean",
+              "default": true,
+              "description": "Render heading text in bold."
+            },
+            "headingColors": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 6,
+              "maxItems": 6,
+              "default": [
+                "charts.blue",
+                "charts.purple",
+                "charts.green",
+                "charts.orange",
+                "charts.red",
+                "charts.yellow"
+              ],
+              "description": "Theme color ids or CSS colors for H1 through H6."
+            },
+            "headingOpacities": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "minItems": 6,
+              "maxItems": 6,
+              "default": [
+                "1",
+                "1",
+                "1",
+                "1",
+                "1",
+                "0.85"
+              ],
+              "description": "Opacity values for H1 through H6."
+            }
+          },
+          "additionalProperties": false
         }
       }
     }

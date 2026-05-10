@@ -43,14 +43,14 @@ describe('splitRanges', () => {
   });
 
   describe('hidden mode', () => {
-    it('syntax on a non-cursor line goes to hiddenSyntax', () => {
+    it('syntax on a non-cursor line still stays visible', () => {
       const { byKind, hiddenSyntax } = splitRanges(
         [sr('syntax', 3, 0, 3, 2)],
         new Set([1]),
         'hidden',
       );
-      expect(hiddenSyntax).toHaveLength(1);
-      expect(byKind.syntax).toHaveLength(0);
+      expect(byKind.syntax).toHaveLength(1);
+      expect(hiddenSyntax).toHaveLength(0);
     });
 
     it('syntax on a cursor line stays visible in byKind.syntax', () => {
@@ -63,16 +63,16 @@ describe('splitRanges', () => {
       expect(hiddenSyntax).toHaveLength(0);
     });
 
-    it('mixed lines: cursor-line syntax visible, others hidden', () => {
+    it('mixed lines: all syntax remains visible', () => {
       const ranges = [
         sr('syntax', 1, 0, 1, 2),
         sr('syntax', 2, 0, 2, 2),
         sr('syntax', 3, 0, 3, 2),
       ];
       const { byKind, hiddenSyntax } = splitRanges(ranges, new Set([2]), 'hidden');
-      expect(byKind.syntax).toHaveLength(1);
-      expect(byKind.syntax[0]).toEqual(plain(2, 0, 2, 2));
-      expect(hiddenSyntax).toHaveLength(2);
+      expect(byKind.syntax).toHaveLength(3);
+      expect(byKind.syntax[0]).toEqual(plain(1, 0, 1, 2));
+      expect(hiddenSyntax).toHaveLength(0);
     });
 
     it('non-syntax kinds are never hidden regardless of cursor position', () => {
@@ -99,11 +99,11 @@ describe('splitRanges', () => {
   describe('list markers', () => {
     it('list marker ranges land in the listMarker bucket', () => {
       const { byKind, hiddenSyntax } = splitRanges(
-        [{ ...sr('listMarker', 0, 0, 0, 1), replacementText: '  •  ' }],
+        [sr('listMarker', 0, 0, 0, 1)],
         new Set(),
         'hidden',
       );
-      expect(byKind.listMarker).toEqual([{ ...plain(0, 0, 0, 1), replacementText: '  •  ' }]);
+      expect(byKind.listMarker).toEqual([plain(0, 0, 0, 1)]);
       expect(hiddenSyntax).toHaveLength(0);
     });
   });

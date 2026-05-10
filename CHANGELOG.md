@@ -20,8 +20,10 @@ All notable changes to Livemarks are documented here.
 - Blockquote marker decoration.
 - Fenced code block content backgrounds.
 - Inline link label styling with URL syntax dimming.
+- `livemarks.styles` JSON setting for configuring opacity, code backgrounds, link styling, and heading colors.
 
 ### Fixed
+- Markdown markup is now always faintly visible, including list markers, blockquote markers, and syntax markers off the cursor line.
 - Heading content range no longer uses `block.content.length`; instead scans the source line directly — handles extra spaces, tabs, ATX-closed headings, and trailing whitespace correctly.
 - Dead `blockSource` parameter removed from `walkInline`.
 - Heading level bound check added (`1..6`).

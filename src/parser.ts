@@ -11,7 +11,6 @@ export interface StyledRange {
   startChar: number;
   endLine: number;
   endChar: number;
-  replacementText?: string;
 }
 
 const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
@@ -50,7 +49,6 @@ export function parseMarkdown(source: string): StyledRange[] {
           startChar: marker.start,
           endLine: line,
           endChar: marker.end,
-          replacementText: `  ${marker.text}  `,
         });
       }
 
@@ -64,7 +62,6 @@ export function parseMarkdown(source: string): StyledRange[] {
             startChar: marker.start,
             endLine: line,
             endChar: marker.end,
-            replacementText: '\u2502 ',
           });
         }
       }

@@ -95,23 +95,23 @@ describe('parseMarkdown', () => {
       expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 4 });
     });
 
-    it('does not treat ordered list markers as bullet markers', () => {
+    it('emits ordered list markers as faint markup', () => {
       const markers = pick(parseMarkdown('1. item'), 'listMarker');
       expect(markers).toHaveLength(1);
-      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 3, replacementText: '  1.  ' });
+      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 3 });
     });
 
     it('emits ordered list markers with their source number', () => {
       const markers = pick(parseMarkdown('42) item'), 'listMarker');
       expect(markers).toHaveLength(1);
-      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 4, replacementText: '  42)  ' });
+      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 4 });
     });
 
     it('emits quote marker ranges for blockquotes', () => {
       const markers = pick(parseMarkdown('> quote\n> more'), 'quoteMarker');
       expect(markers).toHaveLength(2);
-      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 2, replacementText: '│ ' });
-      expect(markers[1]).toMatchObject({ startLine: 1, startChar: 0, endLine: 1, endChar: 2, replacementText: '│ ' });
+      expect(markers[0]).toMatchObject({ startLine: 0, startChar: 0, endLine: 0, endChar: 2 });
+      expect(markers[1]).toMatchObject({ startLine: 1, startChar: 0, endLine: 1, endChar: 2 });
     });
 
     it('offsets emphasis inside bullet list items', () => {

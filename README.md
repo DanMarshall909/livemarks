@@ -11,9 +11,9 @@ It's the middle ground between a plain text editor and a full preview panel.
 | `**bold**` | **bold** (markers dimmed) |
 | `*italic*` or `_italic_` | *italic* (markers dimmed) |
 | `~~strikethrough~~` | ~~strikethrough~~ (markers dimmed) |
-| `* item`, `- item`, `+ item` | Indented bullet marker |
-| `1. item`, `2) item` | Indented ordered marker |
-| `> quote` | Quote bar marker |
+| `* item`, `- item`, `+ item` | Bullet marker faintly visible |
+| `1. item`, `2) item` | Ordered marker faintly visible |
+| `> quote` | Quote marker faintly visible |
 | `` `code` `` and fenced code | Code background with syntax markers dimmed |
 | `[label](url)` | Link label colored and underlined, URL syntax dimmed |
 | `# Heading 1` | Colored heading text, `#` dimmed |
@@ -40,6 +40,37 @@ Then press **F5** in VS Code to launch an Extension Development Host with Livema
 Livemarks uses VS Code's [TextEditorDecorationType](https://code.visualstudio.com/api/references/vscode-api#TextEditorDecorationType) API to apply per-range CSS styling directly in the editor. The document is parsed with [markdown-it](https://github.com/markdown-it/markdown-it) — the same parser VS Code's built-in markdown preview uses — so token boundaries always agree with what the renderer would show.
 
 Decorations are re-applied 150 ms after each edit (debounced), with no perceptible lag on normal documents.
+
+## Configuration
+
+All rendering settings can be configured in VS Code `settings.json`:
+
+```json
+{
+  "livemarks.enabled": true,
+  "livemarks.maxDocumentLines": 5000,
+  "livemarks.styles": {
+    "syntaxOpacity": "0.4",
+    "markerOpacity": "0.4",
+    "codeBackground": "textCodeBlock.background",
+    "codeBlockBackground": "textCodeBlock.background",
+    "linkColor": "textLink.foreground",
+    "linkUnderline": true,
+    "headingBold": true,
+    "headingColors": [
+      "charts.blue",
+      "charts.purple",
+      "charts.green",
+      "charts.orange",
+      "charts.red",
+      "charts.yellow"
+    ],
+    "headingOpacities": ["1", "1", "1", "1", "1", "0.85"]
+  }
+}
+```
+
+Color values can be VS Code theme color ids or CSS colors like `#4fc1ff`.
 
 ## Roadmap
 
